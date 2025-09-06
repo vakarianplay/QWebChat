@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Чат</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        #chat {
+            flex: 1;
+            border: 1px solid #ccc;
+            padding: 10px;
+            overflow-y: auto;
+        }
+        #input {
+            display: flex;
+            border-top: 1px solid #ccc;
+        }
+        #message {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            font-size: 14px;
+        }
+        #send {
+            padding: 10px 20px;
+            border: none;
+            background: #007BFF;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="chat"></div>
+    <div id="input">
+        <input type="text" id="message" placeholder="Введите сообщение...">
+        <button id="send">Отправить</button>
+    </div>
+    <script>
+        const chat = document.getElementById('chat');
+        const messageInput = document.getElementById('message');
+        const sendButton = document.getElementById('send');
+
+        const ws = new WebSocket('ws://localhost:8080');
+
+        ws.onopen = () => {
+            chat.innerHTML += '<div><em>Соединение установлено</em></div>';
+        };
+
+        ws.onmessage = (event) => {
+            const div = document.createElement('div');
+            div.textContent = event.data;
+            chat.appendChild(div);
+            chat.scrollTop = chat.scrollHeight;
+        };
+
+        ws.onclose = () => {
+            chat.innerHTML += '<div><em>Соединение закрыто</em></div>';
+        };
+
+        ws.onerror = (error) => {
+            console.error('Ошибка WebSocket:', error);
+        };
+
+        sendButton.onclick = () => {
+            const message = messageInput.value.trim();
+            if (message) {
+                ws.send(message);
+                messageInput.value = '';
+            }
+        };
+
+        messageInput.onkeydown = (event) => {
+            if (event.key === 'Enter') {
+                sendButton.click();
+            }
+        };
+    </script>
+</body>
+</html>
