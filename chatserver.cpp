@@ -1,5 +1,6 @@
 #include "chatserver.h"
 #include <QFile>
+#include <QHostAddress>
 #include <QDebug>
 
 ChatServer::ChatServer(quint16 wsPort, quint16 httpPort, QObject *parent)
@@ -34,21 +35,39 @@ void ChatServer::onNewConnection() {
     auto client = wsServer->nextPendingConnection();
     clients.append(client);
 
+    // Получение IP-адреса клиента
+    QHostAddress clientAddress = client->peerAddress();
+    QString ipAddress = clientAddress.toString();
+    clientIPs[client] = ipAddress;
+
     connect(client, &QWebSocket::textMessageReceived, this, &ChatServer::onTextMessageReceived);
     connect(client, &QWebSocket::disconnected, this, &ChatServer::onClientDisconnected);
 
-    qDebug() << "Новый WebSocket клиент подключился";
+    qDebug() << "Новый WebSocket клиент подключился с IP:" << ipAddress;
 }
 
 // Обработка полученного сообщения через WebSocket
 void ChatServer::onTextMessageReceived(const QString &message) {
     auto senderClient = qobject_cast<QWebSocket *>(sender());
     if (senderClient) {
-        qDebug() << "Получено сообщение:" << message;
+        QString senderIP = clientIPs.value(senderClient, "Unknown");
+
+        // Получаем текущую дату и время
+        QString currentTime = QDateTime::currentDateTime()
+                                  .toString("dd:MM:yyyy hh:mm:ss.zzz");
+
+        // Формируем сообщение: [IP] [время] текст
+        QString fullMessage = QString("<span style=\"color: blue; font-weight: bold;\">[%1]</span> "
+                                      "<span style=\"color: gray;\">[%2]</span> %3")
+                                  .arg(senderIP)
+                                  .arg(currentTime)
+                                  .arg(message);
+
+        qDebug() << "Получено сообщение от" << senderIP << "в" << currentTime << ":" << message;
 
         // Распространяем сообщение всем клиентам
         for (QWebSocket *client : qAsConst(clients)) {
-            client->sendTextMessage(message);
+            client->sendTextMessage(fullMessage);
         }
     }
 }
@@ -57,8 +76,12 @@ void ChatServer::onTextMessageReceived(const QString &message) {
 void ChatServer::onClientDisconnected() {
     auto client = qobject_cast<QWebSocket *>(sender());
     if (client) {
-        qDebug() << "WebSocket клиент отключился";
+        QString clientIP = clientIPs.value(client, "Unknown");
+
+        qDebug() << "WebSocket клиент отключился с IP:" << clientIP;
+
         clients.removeAll(client);
+        clientIPs.remove(client);
         client->deleteLater();
     }
 }

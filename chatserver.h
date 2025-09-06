@@ -7,6 +7,7 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QList>
+#include <QMap>
 
 class ChatServer : public QObject {
     Q_OBJECT
@@ -25,9 +26,10 @@ private slots:
     void onHttpConnection();
 
 private:
-    QWebSocketServer *wsServer;  // WebSocket сервер
-    QTcpServer *httpServer;      // HTTP сервер
-    QList<QWebSocket *> clients; // Список WebSocket клиентов
+    QWebSocketServer *wsServer;                // WebSocket сервер
+    QTcpServer *httpServer;                    // HTTP сервер
+    QList<QWebSocket *> clients;               // Список WebSocket клиентов
+    QMap<QWebSocket *, QString> clientIPs;     // Карта клиента и его IP-адреса
 };
 
 #endif // CHATSERVER_H

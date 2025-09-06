@@ -17,6 +17,7 @@
             border: 1px solid #ccc;
             padding: 10px;
             overflow-y: auto;
+            background-color: #f8f8f8;
         }
         #input {
             display: flex;
@@ -49,7 +50,7 @@
         const messageInput = document.getElementById('message');
         const sendButton = document.getElementById('send');
 
-        const ws = new WebSocket('ws://localhost:8080');
+        const ws = new WebSocket(`ws://${window.location.hostname}:8080`);
 
         ws.onopen = () => {
             chat.innerHTML += '<div><em>Соединение установлено</em></div>';
@@ -57,7 +58,7 @@
 
         ws.onmessage = (event) => {
             const div = document.createElement('div');
-            div.textContent = event.data;
+            div.innerHTML = event.data; // Используем innerHTML для рендера HTML с сервера
             chat.appendChild(div);
             chat.scrollTop = chat.scrollHeight;
         };
