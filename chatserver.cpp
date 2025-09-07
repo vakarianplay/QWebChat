@@ -10,15 +10,16 @@ ChatServer::ChatServer(quint16 wsPort, quint16 httpPort, QObject *parent)
     httpServer(new QTcpServer(this)),
     chatHistoryFile("chat_history.csv") { // Инициализация файла CSV
     // Открытие файла на запись; добавление заголовков, если файла нет
-    // if (chatHistoryFile.open(QIODevice::ReadWrite | QIODevice::Append)) {
-    //     if (chatHistoryFile.size() == 0) {
-    //         // Если файл пуст, добавляем заголовки колонок
-    //         QTextStream out(&chatHistoryFile);
-    //         out << "IP,Date,Message\n";
-    //     }
-    // } else {
-    //     qDebug() << "Не удалось открыть файл chat_history.csv для записи!";
-    // }
+    if (chatHistoryFile.open(QIODevice::ReadWrite | QIODevice::Append)) {
+        if (chatHistoryFile.size() == 0) {
+            // Если файл пуст, добавляем заголовки колонок
+            QTextStream out(&chatHistoryFile);
+            out << "IP,Date,Message\n";
+        }
+    } else {
+        qDebug() << "Не удалось открыть файл chat_history.csv для записи!";
+    }
+    chatHistoryFile.close();
 
     // Запуск WebSocket сервера
     if (wsServer->listen(QHostAddress::Any, wsPort)) {
