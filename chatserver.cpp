@@ -1,12 +1,25 @@
 #include "chatserver.h"
 #include <QFile>
 #include <QHostAddress>
+#include <QDateTime>
 #include <QDebug>
 
 ChatServer::ChatServer(quint16 wsPort, quint16 httpPort, QObject *parent)
     : QObject(parent),
     wsServer(new QWebSocketServer("Chat WebSocket Server", QWebSocketServer::NonSecureMode, this)),
-    httpServer(new QTcpServer(this)) {
+    httpServer(new QTcpServer(this)),
+    chatHistoryFile("chat_history.csv") { // Инициализация файла CSV
+    // Открытие файла на запись; добавление заголовков, если файла нет
+    // if (chatHistoryFile.open(QIODevice::ReadWrite | QIODevice::Append)) {
+    //     if (chatHistoryFile.size() == 0) {
+    //         // Если файл пуст, добавляем заголовки колонок
+    //         QTextStream out(&chatHistoryFile);
+    //         out << "IP,Date,Message\n";
+    //     }
+    // } else {
+    //     qDebug() << "Не удалось открыть файл chat_history.csv для записи!";
+    // }
+
     // Запуск WebSocket сервера
     if (wsServer->listen(QHostAddress::Any, wsPort)) {
         qDebug() << "WebSocket сервер запущен на порту" << wsServer->serverPort();
@@ -27,7 +40,24 @@ ChatServer::ChatServer(quint16 wsPort, quint16 httpPort, QObject *parent)
 ChatServer::~ChatServer() {
     wsServer->close();
     httpServer->close();
+    chatHistoryFile.close(); // Закрытие файла
     qDeleteAll(clients);
+}
+
+void ChatServer::writeToCsv(const QString &ip, const QString &date, const QString &message) {
+    if (chatHistoryFile.open(QIODevice::WriteOnly | QIODevice::Append)) {
+        QTextStream out(&chatHistoryFile);
+
+        // Экранируем запятые в тексте сообщения, чтобы не сломать CSV:
+        QString escapedMessage = message;
+        escapedMessage.replace("\"", "\"\""); // Заменяем кавычки для корректной обработки
+        escapedMessage = "\"" + escapedMessage + "\""; // Оборачиваем сообщение в кавычки
+        out << QString("%1,%2,%3\n").arg(ip, date, escapedMessage);
+
+        chatHistoryFile.close(); // Закрываем файл после записи
+    } else {
+        qDebug() << "Не удалось открыть файл chat_history.csv для записи!";
+    }
 }
 
 // Обработка нового WebSocket соединения
@@ -44,28 +74,70 @@ void ChatServer::onNewConnection() {
     connect(client, &QWebSocket::disconnected, this, &ChatServer::onClientDisconnected);
 
     qDebug() << "Новый WebSocket клиент подключился с IP:" << ipAddress;
+
+    sendLastMessages(client);
 }
 
-// Обработка полученного сообщения через WebSocket
+void ChatServer::sendLastMessages(QWebSocket *client) {
+    if (!chatHistoryFile.exists() || !chatHistoryFile.open(QIODevice::ReadOnly)) {
+        qDebug() << "Не удалось открыть файл chat_history.csv для чтения!";
+        return;
+    }
+
+    // Читаем весь файл построчно
+    QList<QString> lines;
+    QTextStream in(&chatHistoryFile);
+    while (!in.atEnd()) {
+        lines.append(in.readLine());
+    }
+
+    chatHistoryFile.close();
+
+    // Проверяем, есть ли в файле сообщения (пропускаем заголовок "IP,Date,Message")
+    if (lines.size() <= 1) {
+        return; // В файле только заголовок или он пуст
+    }
+
+    // Берём последние 10 сообщений (исключая заголовок)
+    int startIndex = qMax(1, lines.size() - 50); // 1, чтобы пропустить заголовок
+    for (int i = startIndex; i < lines.size(); ++i) {
+        QStringList parts = lines[i].split(',', Qt::KeepEmptyParts);
+
+        // Если формат некорректен, пропускаем строку
+        if (parts.size() < 3) {
+            continue;
+        }
+
+        QString ip = parts[0];
+        QString date = parts[1];
+        QString message = parts[2];
+
+        // Воссоздаём сообщение в том же формате, что используется для отправки сообщений
+        QString fullMessage = QString("<span style=\"color: blue; font-weight: bold;\">[%1]</span> "
+                                      "<span style=\"color: gray;\">[%2]</span> %3")
+                                  .arg(ip, date, message);
+
+        // Отправляем сообщение клиенту
+        client->sendTextMessage(fullMessage);
+    }
+}
+
 void ChatServer::onTextMessageReceived(const QString &message) {
     auto senderClient = qobject_cast<QWebSocket *>(sender());
     if (senderClient) {
         QString senderIP = clientIPs.value(senderClient, "Unknown");
 
-        // Получаем текущую дату и время
         QString currentTime = QDateTime::currentDateTime()
                                   .toString("dd:MM:yyyy hh:mm:ss.zzz");
 
-        // Формируем сообщение: [IP] [время] текст
         QString fullMessage = QString("<span style=\"color: blue; font-weight: bold;\">[%1]</span> "
                                       "<span style=\"color: gray;\">[%2]</span> %3")
                                   .arg(senderIP)
                                   .arg(currentTime)
                                   .arg(message);
 
-        qDebug() << "Получено сообщение от" << senderIP << "в" << currentTime << ":" << message;
+        writeToCsv(senderIP, currentTime, message);
 
-        // Распространяем сообщение всем клиентам
         for (QWebSocket *client : qAsConst(clients)) {
             client->sendTextMessage(fullMessage);
         }
@@ -104,6 +176,7 @@ void ChatServer::onHttpConnection() {
     QFile file("index.html");
     if (file.open(QIODevice::ReadOnly)) {
         QByteArray content = file.readAll();
+        content.replace("{ws_port}", QByteArray::number(wsServer->serverPort()));
         file.close();
 
         QByteArray response = "HTTP/1.1 200 OK\r\n";

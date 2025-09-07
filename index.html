@@ -50,7 +50,7 @@
         const messageInput = document.getElementById('message');
         const sendButton = document.getElementById('send');
 
-        const ws = new WebSocket(`ws://${window.location.hostname}:8080`);
+        const ws = new WebSocket(`ws://${window.location.hostname}:{ws_port}`);
 
         ws.onopen = () => {
             chat.innerHTML += '<div><em>Соединение установлено</em></div>';

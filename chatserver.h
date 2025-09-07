@@ -8,6 +8,7 @@
 #include <QTcpSocket>
 #include <QList>
 #include <QMap>
+#include <QFile>
 
 class ChatServer : public QObject {
     Q_OBJECT
@@ -30,6 +31,11 @@ private:
     QTcpServer *httpServer;                    // HTTP сервер
     QList<QWebSocket *> clients;               // Список WebSocket клиентов
     QMap<QWebSocket *, QString> clientIPs;     // Карта клиента и его IP-адреса
+
+    QFile chatHistoryFile;                     // Файл для записей истории чата
+
+    void writeToCsv(const QString &ip, const QString &date, const QString &message);   // Запись в CSV файл
+    void sendLastMessages(QWebSocket *client);                                        // Отправка последних 10 сообщений
 };
 
 #endif // CHATSERVER_H
