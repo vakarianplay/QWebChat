@@ -20,3 +20,18 @@ HEADERS += \
 
 DISTFILES += \
     index.html
+
+win {
+    build_extra_files.target = $$OUT_PWD/index.html
+    build_extra_files.commands = copy /Y $$PWD/index.html $$OUT_PWD\
+    QMAKE_EXTRA_TARGETS += build_extra_files
+    PRE_TARGETDEPS += $$build_extra_files.target
+}
+
+unix {
+    build_extra_files.target = $$OUT_PWD/index.html
+    build_extra_files.commands = cp /Y index.html $$OUT_PWD\
+    QMAKE_EXTRA_TARGETS += build_extra_files
+    PRE_TARGETDEPS += $$build_extra_files.target
+}
+
