@@ -39,17 +39,14 @@ void ChatServer::writeToCsv(const QString &ip, const QString &date, const QStrin
         QTextStream out(&chatHistoryFile);
 
         QString escapedMessage = message;
-        escapedMessage.replace("\"", "\"\""); // Заменяем кавычки для корректной обработки
-        escapedMessage = "\"" + escapedMessage + "\""; // Оборачиваем сообщение в кавычки
+        escapedMessage.replace("\"", "\"\"");
+        escapedMessage = "\"" + escapedMessage + "\"";
         out << QString("%1,%2,%3\n").arg(ip, date, escapedMessage);
 
-        chatHistoryFile.close(); // Закрываем файл после записи
-    } else {
-        qDebug() << "Не удалось открыть файл chat_history.csv для записи!";
+        chatHistoryFile.close();
     }
 }
 
-// Обработка нового WebSocket соединения
 void ChatServer::onNewConnection() {
     auto client = wsServer->nextPendingConnection();
     clients.append(client);
@@ -62,18 +59,16 @@ void ChatServer::onNewConnection() {
     connect(client, &QWebSocket::textMessageReceived, this, &ChatServer::onTextMessageReceived);
     connect(client, &QWebSocket::disconnected, this, &ChatServer::onClientDisconnected);
 
-    qDebug() << "Новый WebSocket клиент подключился с IP:" << ipAddress;
+    qDebug() << "New client:" << ipAddress;
 
     sendLastMessages(client);
 }
 
 void ChatServer::sendLastMessages(QWebSocket *client) {
     if (!chatHistoryFile.exists() || !chatHistoryFile.open(QIODevice::ReadOnly)) {
-        qDebug() << "Не удалось открыть файл chat_history.csv для чтения!";
         return;
     }
 
-    // Читаем весь файл построчно
     QList<QString> lines;
     QTextStream in(&chatHistoryFile);
     while (!in.atEnd()) {
@@ -82,17 +77,14 @@ void ChatServer::sendLastMessages(QWebSocket *client) {
 
     chatHistoryFile.close();
 
-    // Проверяем, есть ли в файле сообщения (пропускаем заголовок "IP,Date,Message")
     if (lines.size() <= 1) {
-        return; // В файле только заголовок или он пуст
+        return;
     }
 
-    // Берём последние 10 сообщений (исключая заголовок)
-    int startIndex = qMax(1, lines.size() - 50); // 1, чтобы пропустить заголовок
+    int startIndex = qMax(1, lines.size() - 50);
     for (int i = startIndex; i < lines.size(); ++i) {
         QStringList parts = lines[i].split(',', Qt::KeepEmptyParts);
 
-        // Если формат некорректен, пропускаем строку
         if (parts.size() < 3) {
             continue;
         }
@@ -101,12 +93,10 @@ void ChatServer::sendLastMessages(QWebSocket *client) {
         QString date = parts[1];
         QString message = parts[2];
 
-        // Воссоздаём сообщение в том же формате, что используется для отправки сообщений
         QString fullMessage = QString("<span style=\"color: blue; font-weight: bold;\">[%1]</span> "
                                       "<span style=\"color: gray;\">[%2]</span> %3")
                                   .arg(ip, date, message);
 
-        // Отправляем сообщение клиенту
         client->sendTextMessage(fullMessage);
     }
 }
@@ -133,13 +123,12 @@ void ChatServer::onTextMessageReceived(const QString &message) {
     }
 }
 
-// Обработка отключения WebSocket клиента
 void ChatServer::onClientDisconnected() {
     auto client = qobject_cast<QWebSocket *>(sender());
     if (client) {
         QString clientIP = clientIPs.value(client, "Unknown");
 
-        qDebug() << "WebSocket клиент отключился с IP:" << clientIP;
+        qDebug() << "WebSocket client disconnected:" << clientIP;
 
         clients.removeAll(client);
         clientIPs.remove(client);
@@ -147,7 +136,6 @@ void ChatServer::onClientDisconnected() {
     }
 }
 
-// Обработка нового HTTP соединения (раздача файлов)
 void ChatServer::onHttpConnection() {
     QTcpSocket *socket = httpServer->nextPendingConnection();
     connect(socket, &QTcpSocket::disconnected, socket, &QTcpSocket::deleteLater);
@@ -157,11 +145,7 @@ void ChatServer::onHttpConnection() {
         return;
     }
 
-    // Читаем HTTP-запрос
     QByteArray request = socket->readAll();
-    qDebug() << "HTTP запрос:" << request;
-
-    // Предоставляем файлы (здесь раздаём index.html)
     QFile file("index.html");
     if (file.open(QIODevice::ReadOnly)) {
         QByteArray content = file.readAll();
@@ -177,11 +161,9 @@ void ChatServer::onHttpConnection() {
         socket->write(response);
         socket->waitForBytesWritten();
     } else {
-        // Если файл не найден
         QByteArray response = "HTTP/1.1 404 Not Found\r\n";
         response += "Content-Length: 0\r\n";
         response += "\r\n";
-
         socket->write(response);
         socket->waitForBytesWritten();
     }
