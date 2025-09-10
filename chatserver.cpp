@@ -8,40 +8,29 @@ ChatServer::ChatServer(quint16 wsPort, quint16 httpPort, QObject *parent)
     : QObject(parent),
     wsServer(new QWebSocketServer("Chat WebSocket Server", QWebSocketServer::NonSecureMode, this)),
     httpServer(new QTcpServer(this)),
-    chatHistoryFile("chat_history.csv") { // Инициализация файла CSV
-    // Открытие файла на запись; добавление заголовков, если файла нет
+    chatHistoryFile("chat_history.csv") {
+
     if (chatHistoryFile.open(QIODevice::ReadWrite | QIODevice::Append)) {
         if (chatHistoryFile.size() == 0) {
-            // Если файл пуст, добавляем заголовки колонок
             QTextStream out(&chatHistoryFile);
             out << "IP,Date,Message\n";
         }
-    } else {
-        qDebug() << "Не удалось открыть файл chat_history.csv для записи!";
     }
     chatHistoryFile.close();
 
-    // Запуск WebSocket сервера
     if (wsServer->listen(QHostAddress::Any, wsPort)) {
-        qDebug() << "WebSocket сервер запущен на порту" << wsServer->serverPort();
         connect(wsServer, &QWebSocketServer::newConnection, this, &ChatServer::onNewConnection);
-    } else {
-        qDebug() << "Ошибка запуска WebSocket сервера!";
     }
 
-    // Запуск HTTP сервера
     if (httpServer->listen(QHostAddress::Any, httpPort)) {
-        qDebug() << "HTTP сервер запущен на порту" << httpServer->serverPort();
         connect(httpServer, &QTcpServer::newConnection, this, &ChatServer::onHttpConnection);
-    } else {
-        qDebug() << "Ошибка запуска HTTP сервера!";
     }
 }
 
 ChatServer::~ChatServer() {
     wsServer->close();
     httpServer->close();
-    chatHistoryFile.close(); // Закрытие файла
+    chatHistoryFile.close();
     qDeleteAll(clients);
 }
 
@@ -49,7 +38,6 @@ void ChatServer::writeToCsv(const QString &ip, const QString &date, const QStrin
     if (chatHistoryFile.open(QIODevice::WriteOnly | QIODevice::Append)) {
         QTextStream out(&chatHistoryFile);
 
-        // Экранируем запятые в тексте сообщения, чтобы не сломать CSV:
         QString escapedMessage = message;
         escapedMessage.replace("\"", "\"\""); // Заменяем кавычки для корректной обработки
         escapedMessage = "\"" + escapedMessage + "\""; // Оборачиваем сообщение в кавычки
