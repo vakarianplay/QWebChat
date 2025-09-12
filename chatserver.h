@@ -18,24 +18,25 @@ public:
     ~ChatServer();
 
 private slots:
-    // WebSocket события
+    // WebSocket
     void onNewConnection();
     void onTextMessageReceived(const QString &message);
     void onClientDisconnected();
 
-    // HTTP события
+    // HTTP
     void onHttpConnection();
 
 private:
-    QWebSocketServer *wsServer;                // WebSocket сервер
-    QTcpServer *httpServer;                    // HTTP сервер
-    QList<QWebSocket *> clients;               // Список WebSocket клиентов
-    QMap<QWebSocket *, QString> clientIPs;     // Карта клиента и его IP-адреса
+    QWebSocketServer *wsServer;               
+    QTcpServer *httpServer;                    
+    QList<QWebSocket *> clients;               
+    QMap<QWebSocket *, QString> clientIPs;    
 
-    QFile chatHistoryFile;                     // Файл для записей истории чата
+    QFile chatHistoryFile;                    
 
-    void writeToCsv(const QString &ip, const QString &date, const QString &message);   // Запись в CSV файл
-    void sendLastMessages(QWebSocket *client);                                        // Отправка последних 10 сообщений
+    void writeToCsv(const QString &ip, const QString &date, const QString &message);   
+    void sendLastMessages(QWebSocket *client);                                        
 };
+
 
 #endif // CHATSERVER_H
