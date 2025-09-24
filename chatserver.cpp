@@ -50,8 +50,7 @@ void ChatServer::writeToCsv(const QString &ip, const QString &date, const QStrin
 void ChatServer::onNewConnection() {
     auto client = wsServer->nextPendingConnection();
     clients.append(client);
-
-    // Получение IP-адреса клиента
+    
     QHostAddress clientAddress = client->peerAddress();
     QString ipAddress = clientAddress.toString();
     clientIPs[client] = ipAddress;
@@ -60,7 +59,6 @@ void ChatServer::onNewConnection() {
     connect(client, &QWebSocket::disconnected, this, &ChatServer::onClientDisconnected);
 
     qDebug() << "New client:" << ipAddress;
-
     sendLastMessages(client);
 }
 
@@ -92,11 +90,9 @@ void ChatServer::sendLastMessages(QWebSocket *client) {
         QString ip = parts[0];
         QString date = parts[1];
         QString message = parts[2];
-
         QString fullMessage = QString("<span style=\"color: blue; font-weight: bold;\">[%1]</span> "
                                       "<span style=\"color: gray;\">[%2]</span> %3")
                                   .arg(ip, date, message);
-
         client->sendTextMessage(fullMessage);
     }
 }
@@ -105,18 +101,15 @@ void ChatServer::onTextMessageReceived(const QString &message) {
     auto senderClient = qobject_cast<QWebSocket *>(sender());
     if (senderClient) {
         QString senderIP = clientIPs.value(senderClient, "Unknown");
-
         QString currentTime = QDateTime::currentDateTime()
                                   .toString("dd:MM:yyyy hh:mm:ss.zzz");
-
         QString fullMessage = QString("<span style=\"color: blue; font-weight: bold;\">[%1]</span> "
                                       "<span style=\"color: gray;\">[%2]</span> %3")
                                   .arg(senderIP)
                                   .arg(currentTime)
                                   .arg(message);
-
         writeToCsv(senderIP, currentTime, message);
-
+        
         for (QWebSocket *client : qAsConst(clients)) {
             client->sendTextMessage(fullMessage);
         }
@@ -157,7 +150,6 @@ void ChatServer::onHttpConnection() {
         response += "Content-Length: " + QByteArray::number(content.size()) + "\r\n";
         response += "\r\n";
         response += content;
-
         socket->write(response);
         socket->waitForBytesWritten();
     } else {
@@ -169,4 +161,5 @@ void ChatServer::onHttpConnection() {
     }
 
     socket->close();
+
 }
