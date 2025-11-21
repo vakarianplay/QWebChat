@@ -13,10 +13,11 @@ QWebChat is a lightweight C++/Qt application that runs a local web server for or
 - 🏠 Local network operation
 - ⚡ Lightweight Qt server
 - 📱 Support for any device with a browser
+- 💾 Saving chat history to .csv file and loading for new chat clients
 
 ## Requirements
 
-- Qt 5.x or higher
+- Qt 6.x or higher
 - C++ compiler with C++11 support
 - CMake or qmake
 
