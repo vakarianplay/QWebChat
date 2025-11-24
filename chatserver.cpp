@@ -1,165 +1,235 @@
 #include "chatserver.h"
-#include <QFile>
+#include <QTcpSocket>
 #include <QHostAddress>
 #include <QDateTime>
 #include <QDebug>
 
 ChatServer::ChatServer(quint16 wsPort, quint16 httpPort, QObject *parent)
     : QObject(parent),
-    wsServer(new QWebSocketServer("Chat WebSocket Server", QWebSocketServer::NonSecureMode, this)),
-    httpServer(new QTcpServer(this)),
-    chatHistoryFile("chat_history.csv") {
-
-    if (chatHistoryFile.open(QIODevice::ReadWrite | QIODevice::Append)) {
-        if (chatHistoryFile.size() == 0) {
-            QTextStream out(&chatHistoryFile);
-            out << "IP,Date,Message\n";
-        }
-    }
-    chatHistoryFile.close();
-
-    if (wsServer->listen(QHostAddress::Any, wsPort)) {
-        connect(wsServer, &QWebSocketServer::newConnection, this, &ChatServer::onNewConnection);
+      webSocketServer(new QWebSocketServer("Chat Server", QWebSocketServer::NonSecureMode, this)),
+      httpServer(new QTcpServer(this)),
+      fileManager(new FileManager(this)),
+      messageProcessor(new MessageProcessor(this))
+{
+    // WebSocket сервер
+    if (webSocketServer->listen(QHostAddress::Any, wsPort)) {
+        connect(webSocketServer, &QWebSocketServer::newConnection, 
+                this, &ChatServer::onNewWebSocketConnection);
+        qDebug() << "WebSocket server listening on port" << wsPort;
     }
 
+    // HTTP сервер
     if (httpServer->listen(QHostAddress::Any, httpPort)) {
-        connect(httpServer, &QTcpServer::newConnection, this, &ChatServer::onHttpConnection);
+        connect(httpServer, &QTcpServer::newConnection, 
+                this, &ChatServer::onHttpConnection);
+        qDebug() << "HTTP server listening on port" << httpPort;
     }
 }
 
-ChatServer::~ChatServer() {
-    wsServer->close();
+ChatServer::~ChatServer()
+{
+    webSocketServer->close();
     httpServer->close();
-    chatHistoryFile.close();
-    qDeleteAll(clients);
+    qDeleteAll(clients.keys());
 }
 
-void ChatServer::writeToCsv(const QString &ip, const QString &date, const QString &message) {
-    if (chatHistoryFile.open(QIODevice::WriteOnly | QIODevice::Append)) {
-        QTextStream out(&chatHistoryFile);
+void ChatServer::onNewWebSocketConnection()
+{
+    QWebSocket *client = webSocketServer->nextPendingConnection();
+    QString clientInfo = getClientInfo(client);
 
-        QString escapedMessage = message;
-        escapedMessage.replace("\"", "\"\"");
-        escapedMessage = "\"" + escapedMessage + "\"";
-        out << QString("%1,%2,%3\n").arg(ip, date, escapedMessage);
+    clients.insert(client, clientInfo);
+    qDebug() << "New client connected:" << clientInfo;
 
-        chatHistoryFile.close();
-    }
-}
+    connect(client, &QWebSocket::textMessageReceived,
+            this, &ChatServer::onWebSocketTextMessage);
+    connect(client, &QWebSocket::binaryMessageReceived,
+            this, &ChatServer::onWebSocketBinaryMessage);
+    connect(client, &QWebSocket::disconnected,
+            this, &ChatServer::onWebSocketDisconnected);
 
-void ChatServer::onNewConnection() {
-    auto client = wsServer->nextPendingConnection();
-    clients.append(client);
-    
-    QHostAddress clientAddress = client->peerAddress();
-    QString ipAddress = clientAddress.toString();
-    clientIPs[client] = ipAddress;
-
-    connect(client, &QWebSocket::textMessageReceived, this, &ChatServer::onTextMessageReceived);
-    connect(client, &QWebSocket::disconnected, this, &ChatServer::onClientDisconnected);
-
-    qDebug() << "New client:" << ipAddress;
     sendLastMessages(client);
 }
 
-void ChatServer::sendLastMessages(QWebSocket *client) {
-    if (!chatHistoryFile.exists() || !chatHistoryFile.open(QIODevice::ReadOnly)) {
-        return;
-    }
-
-    QList<QString> lines;
-    QTextStream in(&chatHistoryFile);
-    while (!in.atEnd()) {
-        lines.append(in.readLine());
-    }
-
-    chatHistoryFile.close();
-
-    if (lines.size() <= 1) {
-        return;
-    }
-
-    int startIndex = qMax(1, lines.size() - 50);
-    for (int i = startIndex; i < lines.size(); ++i) {
-        QStringList parts = lines[i].split(',', Qt::KeepEmptyParts);
-
-        if (parts.size() < 3) {
-            continue;
-        }
-
-        QString ip = parts[0];
-        QString date = parts[1];
-        QString message = parts[2];
-        QString fullMessage = QString("<span style=\"color: blue; font-weight: bold;\">[%1]</span> "
-                                      "<span style=\"color: gray;\">[%2]</span> %3")
-                                  .arg(ip, date, message);
-        client->sendTextMessage(fullMessage);
-    }
-}
-
-void ChatServer::onTextMessageReceived(const QString &message) {
-    auto senderClient = qobject_cast<QWebSocket *>(sender());
-    if (senderClient) {
-        QString senderIP = clientIPs.value(senderClient, "Unknown");
-        QString currentTime = QDateTime::currentDateTime()
-                                  .toString("dd:MM:yyyy hh:mm:ss.zzz");
-        QString fullMessage = QString("<span style=\"color: blue; font-weight: bold;\">[%1]</span> "
-                                      "<span style=\"color: gray;\">[%2]</span> %3")
-                                  .arg(senderIP)
-                                  .arg(currentTime)
-                                  .arg(message);
-        writeToCsv(senderIP, currentTime, message);
-        
-        for (QWebSocket *client : qAsConst(clients)) {
-            client->sendTextMessage(fullMessage);
-        }
-    }
-}
-
-void ChatServer::onClientDisconnected() {
-    auto client = qobject_cast<QWebSocket *>(sender());
+void ChatServer::onWebSocketTextMessage(const QString &message)
+{
+    QWebSocket *client = qobject_cast<QWebSocket*>(sender());
     if (client) {
-        QString clientIP = clientIPs.value(client, "Unknown");
+        handleTextMessage(client, message);
+    }
+}
 
-        qDebug() << "WebSocket client disconnected:" << clientIP;
+void ChatServer::onWebSocketBinaryMessage(const QByteArray &message)
+{
+    QWebSocket *client = qobject_cast<QWebSocket*>(sender());
+    if (client) {
+        handleFileMessage(client, message);
+    }
+}
 
-        clients.removeAll(client);
-        clientIPs.remove(client);
+void ChatServer::onWebSocketDisconnected()
+{
+    QWebSocket *client = qobject_cast<QWebSocket*>(sender());
+    if (client) {
+        QString clientInfo = clients.value(client);
+        qDebug() << "Client disconnected:" << clientInfo;
+        clients.remove(client);
         client->deleteLater();
     }
 }
 
-void ChatServer::onHttpConnection() {
-    QTcpSocket *socket = httpServer->nextPendingConnection();
-    connect(socket, &QTcpSocket::disconnected, socket, &QTcpSocket::deleteLater);
-
-    if (!socket->waitForReadyRead(5000)) {
-        socket->close();
+void ChatServer::handleTextMessage(QWebSocket *client, const QString &message)
+{
+    if (message.startsWith("/files")) {
+        sendFileList(client);
         return;
     }
 
-    QByteArray request = socket->readAll();
-    QFile file("index.html");
-    if (file.open(QIODevice::ReadOnly)) {
-        QByteArray content = file.readAll();
-        content.replace("{ws_port}", QByteArray::number(wsServer->serverPort()));
-        file.close();
+    QString clientInfo = clients.value(client);
+    QString currentTime = QDateTime::currentDateTime().toString("dd:MM:yyyy hh:mm:ss.zzz");
 
-        QByteArray response = "HTTP/1.1 200 OK\r\n";
-        response += "Content-Type: text/html\r\n";
-        response += "Content-Length: " + QByteArray::number(content.size()) + "\r\n";
-        response += "\r\n";
-        response += content;
-        socket->write(response);
-        socket->waitForBytesWritten();
+    QString formattedMessage = messageProcessor->formatMessage(clientInfo, currentTime, message);
+    messageProcessor->logMessage(clientInfo, currentTime, message);
+
+    sendToAllClients(formattedMessage);
+}
+
+void ChatServer::handleFileMessage(QWebSocket *client, const QByteArray &message)
+{
+    if (message.size() <= sizeof(quint32)) return;
+
+    // Парсим бинарное сообщение
+    quint32 fileNameSize;
+    QDataStream stream(message);
+    stream >> fileNameSize;
+
+    if (message.size() < sizeof(quint32) + fileNameSize) return;
+
+    QString fileName = QString::fromUtf8(message.mid(sizeof(quint32), fileNameSize));
+    QByteArray fileData = message.mid(sizeof(quint32) + fileNameSize);
+
+    QString clientInfo = clients.value(client);
+    QString currentTime = QDateTime::currentDateTime().toString("dd:MM:yyyy hh:mm:ss.zzz");
+
+    // Сохраняем файл
+    QString savedFileName = fileManager->saveFile(fileData, fileName, clientInfo);
+    if (!savedFileName.isEmpty()) {
+        QString fileMessage = QString("%1 (%2 bytes)").arg(fileName).arg(fileData.size());
+        QString formattedMessage = messageProcessor->formatMessage(
+            clientInfo, currentTime, fileMessage, "file", savedFileName);
+
+        messageProcessor->logMessage(clientInfo, currentTime, fileMessage, "file", savedFileName);
+        sendToAllClients(formattedMessage);
+    }
+}
+
+void ChatServer::sendToAllClients(const QString &message)
+{
+    for (QWebSocket *client : clients.keys()) {
+        if (client->isValid()) {
+            client->sendTextMessage(message);
+        }
+    }
+}
+
+void ChatServer::sendFileList(QWebSocket *client)
+{
+    QStringList files = fileManager->getFileList();
+    QString message = "<span style=\"color: gray;\">Доступные файлы:</span><br>";
+
+    if (files.isEmpty()) {
+        message += "<span style=\"color: gray;\">Файлов нет</span>";
     } else {
-        QByteArray response = "HTTP/1.1 404 Not Found\r\n";
-        response += "Content-Length: 0\r\n";
-        response += "\r\n";
-        socket->write(response);
-        socket->waitForBytesWritten();
+        for (const QString &fileName : files) {
+            QFileInfo fileInfo(fileManager->getFileList().contains(fileName) ? fileName : "");
+            message += QString("<a href=\"/files/%1\" download=\"%2\">📎 %3</a><br>")
+                          .arg(fileName, fileInfo.fileName(), fileInfo.fileName());
+        }
+    }
+
+    client->sendTextMessage(message);
+}
+
+void ChatServer::sendLastMessages(QWebSocket *client)
+{
+    QString history = messageProcessor->getLastMessages();
+    if (!history.isEmpty()) {
+        QStringList lines = history.split('\n');
+        for (const QString &line : lines) {
+            QStringList parts = line.split(',');
+            if (parts.size() >= 3) {
+                QString formatted = messageProcessor->formatMessage(
+                    parts[0], parts[1], parts[2], 
+                    parts.size() > 3 ? parts[3] : "text",
+                    parts.size() > 4 ? parts[4] : "");
+                client->sendTextMessage(formatted);
+            }
+        }
+    }
+}
+
+void ChatServer::onHttpConnection()
+{
+    QTcpSocket *socket = httpServer->nextPendingConnection();
+    connect(socket, &QTcpSocket::disconnected, socket, &QTcpSocket::deleteLater);
+
+    if (socket->waitForReadyRead(5000)) {
+        QString request = QString::fromUtf8(socket->readAll());
+        processHttpRequest(socket, request);
     }
 
     socket->close();
+}
 
+void ChatServer::processHttpRequest(QTcpSocket *socket, const QString &request)
+{
+    if (request.startsWith("GET /files/")) {
+        QString fileName = request.section(' ', 1, 1).mid(7);
+        serveFile(socket, fileName);
+    } else if (request.startsWith("GET /")) {
+        serveHtmlPage(socket);
+    } else {
+        socket->write("HTTP/1.1 404 Not Found\r\n\r\n");
+    }
+}
+
+void ChatServer::serveHtmlPage(QTcpSocket *socket)
+{
+    QFile file("index.html");
+    if (file.open(QIODevice::ReadOnly)) {
+        QByteArray content = file.readAll();
+        content.replace("{ws_port}", QByteArray::number(webSocketServer->serverPort()));
+
+        QByteArray response = "HTTP/1.1 200 OK\r\n"
+                             "Content-Type: text/html\r\n"
+                             "Content-Length: " + QByteArray::number(content.size()) + "\r\n"
+                             "\r\n" + content;
+
+        socket->write(response);
+    } else {
+        socket->write("HTTP/1.1 404 Not Found\r\n\r\n");
+    }
+}
+
+void ChatServer::serveFile(QTcpSocket *socket, const QString &fileName)
+{
+    if (fileManager->fileExists(fileName)) {
+        QByteArray content = fileManager->loadFile(fileName);
+        QString mimeType = fileManager->getMimeType(fileName);
+
+        QByteArray response = "HTTP/1.1 200 OK\r\n"
+                             "Content-Type: " + mimeType.toUtf8() + "\r\n"
+                             "Content-Length: " + QByteArray::number(content.size()) + "\r\n"
+                             "Content-Disposition: attachment; filename=\"" + fileName.toUtf8() + "\"\r\n"
+                             "\r\n" + content;
+
+        socket->write(response);
+    } else {
+        socket->write("HTTP/1.1 404 Not Found\r\n\r\nFile not found");
+    }
+}
+
+QString ChatServer::getClientInfo(QWebSocket *client) const
+{
+    return client->peerAddress().toString();
 }

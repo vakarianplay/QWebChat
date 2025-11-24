@@ -5,12 +5,12 @@
 #include <QWebSocketServer>
 #include <QWebSocket>
 #include <QTcpServer>
-#include <QTcpSocket>
-#include <QList>
 #include <QMap>
-#include <QFile>
+#include "filemanager.h"
+#include "messageprocessor.h"
 
-class ChatServer : public QObject {
+class ChatServer : public QObject
+{
     Q_OBJECT
 
 public:
@@ -18,25 +18,33 @@ public:
     ~ChatServer();
 
 private slots:
-    // WebSocket
-    void onNewConnection();
-    void onTextMessageReceived(const QString &message);
-    void onClientDisconnected();
+    void onNewWebSocketConnection();
+    void onWebSocketTextMessage(const QString &message);
+    void onWebSocketBinaryMessage(const QByteArray &message);
+    void onWebSocketDisconnected();
 
-    // HTTP
     void onHttpConnection();
 
 private:
-    QWebSocketServer *wsServer;               
-    QTcpServer *httpServer;                    
-    QList<QWebSocket *> clients;               
-    QMap<QWebSocket *, QString> clientIPs;    
+    QWebSocketServer *webSocketServer;
+    QTcpServer *httpServer;
 
-    QFile chatHistoryFile;                    
+    FileManager *fileManager;
+    MessageProcessor *messageProcessor;
 
-    void writeToCsv(const QString &ip, const QString &date, const QString &message);   
-    void sendLastMessages(QWebSocket *client);                                        
+    QMap<QWebSocket*, QString> clients;
+
+    void handleTextMessage(QWebSocket *client, const QString &message);
+    void handleFileMessage(QWebSocket *client, const QByteArray &message);
+    void sendToAllClients(const QString &message);
+    void sendFileList(QWebSocket *client);
+    void sendLastMessages(QWebSocket *client);
+
+    void processHttpRequest(QTcpSocket *socket, const QString &request);
+    void serveHtmlPage(QTcpSocket *socket);
+    void serveFile(QTcpSocket *socket, const QString &fileName);
+
+    QString getClientInfo(QWebSocket *client) const;
 };
-
 
 #endif // CHATSERVER_H
