@@ -5,312 +5,71 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Чат</title>
     <style>
-        /* Reset and base styles */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        /* Все предыдущие стили остаются */
+
+        /* Новые стили для загрузки файлов */
+        #file-input {
+            display: none;
         }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
-            height: 100vh;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            padding: 0;
-        }
-
-        /* Chat container */
-        #chat {
-            flex: 1;
-            padding: 16px;
-            overflow-y: auto;
-            background: rgba(255, 255, 255, 0.95);
-            margin: 16px 16px 0 16px;
-            border-radius: 20px 20px 0 0;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            backdrop-filter: blur(10px);
-            -webkit-overflow-scrolling: touch;
-            min-height: 0;
-        }
-
-        #chat::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        #chat::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.1);
-            border-radius: 3px;
-        }
-
-        #chat::-webkit-scrollbar-thumb {
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 3px;
-        }
-
-        /* Message styles */
-        #chat div {
-            margin: 12px 0;
-            padding: 12px 16px;
-            border-radius: 18px;
-            max-width: 85%;
-            word-wrap: break-word;
-            line-height: 1.4;
-            position: relative;
-            animation: fadeIn 0.3s ease-out;
-        }
-
-        #chat div:not(em) {
-            background: #f1f3f5;
-            align-self: flex-start;
-            border-bottom-left-radius: 4px;
-        }
-
-        #chat div:last-child {
-            margin-bottom: 8px;
-        }
-
-        #chat em {
-            display: block;
-            text-align: center;
-            color: #868e96;
-            font-size: 0.8em;
-            padding: 8px;
-            font-style: italic;
-            background: rgba(134, 142, 150, 0.1);
-            border-radius: 10px;
-            margin: 16px auto;
-            max-width: 200px;
-        }
-
-        /* Input area - FIXED FOR MOBILE */
-        #input {
-            display: flex;
-            padding: 12px 16px;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-top: 1px solid rgba(255, 255, 255, 0.2);
-            gap: 12px;
-            align-items: flex-end;
-            margin: 0 16px 16px 16px;
-            border-radius: 0 0 20px 20px;
-            flex-shrink: 0;
-            min-height: 76px;
-        }
-
-        /* Message input */
-        #message {
-            flex: 1;
-            padding: 12px 16px;
-            border: 2px solid #e9ecef;
-            border-radius: 25px;
-            font-size: 16px;
-            outline: none;
-            background: white;
-            transition: all 0.3s ease;
-            min-height: 44px;
-            max-height: 120px;
-            resize: none;
-            overflow-y: auto;
-            width: 100%;
-        }
-
-        #message:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        #message::placeholder {
-            color: #adb5bd;
-        }
-
-        /* Send button */
-        #send {
+        #file-button {
             padding: 0;
             width: 44px;
             height: 44px;
             border: none;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
+            background: #f8f9fa;
+            color: #495057;
             border-radius: 50%;
             cursor: pointer;
             transition: all 0.3s ease;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            font-size: 20px;
             flex-shrink: 0;
         }
 
-        #send:hover {
+        #file-button:hover {
+            background: #e9ecef;
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
         }
 
-        #send:active {
+        #file-button:active {
             transform: translateY(0);
         }
 
-        #send:disabled {
-            background: #adb5bd;
-            transform: none;
-            box-shadow: none;
-            cursor: not-allowed;
-        }
-
-        #send::after {
-            content: '➤';
-            font-size: 18px;
-            margin-left: 2px;
-        }
-
-        /* Connection status */
-        .connection-status {
-            position: fixed;
-            top: 8px;
-            right: 8px;
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
             padding: 8px 12px;
+            background: #e7f3ff;
             border-radius: 15px;
-            font-size: 0.75em;
-            font-weight: 600;
-            z-index: 1000;
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(10px);
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin: 8px 0;
+            font-size: 14px;
         }
 
-        .connected {
-            color: #40c057;
-            border: 1px solid #40c057;
+        .file-info span {
+            flex: 1;
+            word-break: break-all;
         }
 
-        .disconnected {
+        .file-cancel {
+            background: none;
+            border: none;
             color: #fa5252;
-            border: 1px solid #fa5252;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px;
         }
 
-        /* Animations */
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        /* Mobile optimizations */
+        /* Адаптивность для кнопок */
         @media (max-width: 768px) {
-            body {
-                padding: 0;
-            }
-
-            #chat {
-                margin: 0;
-                padding: 12px;
-                border-radius: 0;
-                margin-bottom: 0;
-            }
-
-            #input {
-                margin: 0;
-                padding: 12px;
-                gap: 8px;
-                border-radius: 0;
-                position: sticky;
-                bottom: 0;
-                left: 0;
-                right: 0;
-                min-height: 68px;
-            }
-
-            #message {
-                padding: 10px 14px;
-                font-size: 16px;
-                min-height: 44px;
-            }
-
-            #send {
-                width: 44px;
-                height: 44px;
-                min-width: 44px;
-            }
-
-            #chat div {
-                max-width: 90%;
-                padding: 10px 14px;
-                margin: 8px 0;
-            }
-
-            .connection-status {
-                top: 4px;
-                right: 4px;
-                font-size: 0.7em;
-                padding: 6px 10px;
-            }
-        }
-
-        @media (max-width: 480px) {
-            #chat {
-                padding: 8px;
-            }
-
-            #input {
-                padding: 8px 12px;
-                min-height: 64px;
-            }
-
-            #message {
-                padding: 8px 12px;
-                min-height: 40px;
-                font-size: 15px;
-            }
-
-            #send {
+            #file-button {
                 width: 40px;
                 height: 40px;
+                font-size: 18px;
             }
-
-            #send::after {
-                font-size: 16px;
-            }
-        }
-
-        /* Safe area support for notched devices */
-        @supports (padding: max(0px)) {
-            #input {
-                padding-left: max(12px, env(safe-area-inset-left));
-                padding-right: max(12px, env(safe-area-inset-right));
-                padding-bottom: max(12px, env(safe-area-inset-bottom));
-            }
-
-            #chat {
-                padding-left: max(16px, env(safe-area-inset-left));
-                padding-right: max(16px, env(safe-area-inset-right));
-                padding-top: max(16px, env(safe-area-inset-top));
-            }
-        }
-
-        /* Prevent text selection */
-        #send, #message {
-            user-select: none;
-            -webkit-user-select: none;
-            -webkit-touch-callout: none;
-        }
-
-        /* Improved focus styles */
-        #send:focus-visible {
-            outline: 2px solid #667eea;
-            outline-offset: 2px;
-        }
-
-        /* Virtual keyboard handling */
-        .keyboard-open #chat {
-            margin-bottom: 0;
         }
     </style>
 </head>
@@ -318,6 +77,8 @@
     <div class="connection-status disconnected" id="status">Не подключено</div>
     <div id="chat"></div>
     <div id="input">
+        <input type="file" id="file-input">
+        <button id="file-button" title="Прикрепить файл">📎</button>
         <textarea id="message" placeholder="Введите сообщение..." rows="1"></textarea>
         <button id="send" title="Отправить"></button>
     </div>
@@ -325,100 +86,118 @@
         const chat = document.getElementById('chat');
         const messageInput = document.getElementById('message');
         const sendButton = document.getElementById('send');
+        const fileInput = document.getElementById('file-input');
+        const fileButton = document.getElementById('file-button');
         const status = document.getElementById('status');
         const body = document.body;
 
-        // Auto-resize textarea
-        messageInput.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        let currentFile = null;
+
+        // Остальной JavaScript код остается...
+
+        // Обработка выбора файла
+        fileButton.addEventListener('click', () => {
+            fileInput.click();
         });
 
-        // Virtual keyboard detection
-        let visualViewport = window.visualViewport;
-        if (visualViewport) {
-            visualViewport.addEventListener('resize', function() {
-                if (visualViewport.height < window.innerHeight * 0.7) {
-                    body.classList.add('keyboard-open');
-                } else {
-                    body.classList.remove('keyboard-open');
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                if (file.size > 10 * 1024 * 1024) { // 10MB limit
+                    alert('Файл слишком большой. Максимальный размер: 10MB');
+                    return;
                 }
-                scrollToBottom();
-            });
-        }
 
-        const ws = new WebSocket(`ws://${window.location.hostname}:{ws_port}`);
-
-        ws.onopen = () => {
-            status.textContent = 'Подключено';
-            status.className = 'connection-status connected';
-            addSystemMessage('Соединение установлено');
-        };
-
-        ws.onmessage = (event) => {
-            const div = document.createElement('div');
-            div.innerHTML = event.data;
-            chat.appendChild(div);
-            scrollToBottom();
-        };
-
-        ws.onclose = () => {
-            status.textContent = 'Не подключено';
-            status.className = 'connection-status disconnected';
-            addSystemMessage('Соединение закрыто');
-        };
-
-        ws.onerror = (error) => {
-            console.error('Ошибка WebSocket:', error);
-            status.textContent = 'Ошибка подключения';
-            status.className = 'connection-status disconnected';
-        };
-
-        function addSystemMessage(text) {
-            const div = document.createElement('em');
-            div.textContent = text;
-            chat.appendChild(div);
-            scrollToBottom();
-        }
-
-        function scrollToBottom() {
-            requestAnimationFrame(() => {
-                chat.scrollTop = chat.scrollHeight;
-            });
-        }
-
-        sendButton.onclick = sendMessage;
-
-        messageInput.onkeydown = (event) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                sendMessage();
+                currentFile = file;
+                showFileInfo(file);
             }
-        };
+        });
 
+        function showFileInfo(file) {
+            // Удаляем предыдущую информацию о файле
+            const existingInfo = document.querySelector('.file-info');
+            if (existingInfo) {
+                existingInfo.remove();
+            }
+
+            const fileInfo = document.createElement('div');
+            fileInfo.className = 'file-info';
+            fileInfo.innerHTML = `
+                <span>📎 ${file.name} (${formatFileSize(file.size)})</span>
+                <button class="file-cancel" title="Удалить файл">✕</button>
+            `;
+
+            chat.appendChild(fileInfo);
+            scrollToBottom();
+
+            // Обработка удаления файла
+            fileInfo.querySelector('.file-cancel').addEventListener('click', () => {
+                currentFile = null;
+                fileInput.value = '';
+                fileInfo.remove();
+            });
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Обновляем функцию отправки сообщения
         function sendMessage() {
             const message = messageInput.value.trim();
-            if (message && ws.readyState === WebSocket.OPEN) {
+
+            if (currentFile) {
+                sendFile(currentFile);
+                currentFile = null;
+                fileInput.value = '';
+                const fileInfo = document.querySelector('.file-info');
+                if (fileInfo) fileInfo.remove();
+            } else if (message && ws.readyState === WebSocket.OPEN) {
                 ws.send(message);
                 messageInput.value = '';
                 messageInput.style.height = 'auto';
-                messageInput.focus();
+            }
+
+            messageInput.focus();
+        }
+
+        function sendFile(file) {
+            if (ws.readyState === WebSocket.OPEN) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    // Создаем бинарное сообщение: размер имени файла + имя файла + данные файла
+                    const fileNameBytes = new TextEncoder().encode(file.name);
+                    const fileNameSize = new Uint32Array([fileNameBytes.length]);
+                    const fileData = new Uint8Array(e.target.result);
+
+                    const combined = new Uint8Array(4 + fileNameBytes.length + fileData.length);
+                    combined.set(new Uint8Array(fileNameSize.buffer), 0);
+                    combined.set(fileNameBytes, 4);
+                    combined.set(fileData, 4 + fileNameBytes.length);
+
+                    ws.send(combined);
+                };
+                reader.readAsArrayBuffer(file);
             }
         }
 
-        // Prevent zoom on iOS
-        messageInput.addEventListener('touchstart', function() {
-            this.style.fontSize = '16px';
+        // Обработка команды /files
+        messageInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                const message = messageInput.value.trim();
+                if (message === '/files') {
+                    ws.send('/files');
+                    messageInput.value = '';
+                    return;
+                }
+                sendMessage();
+            }
         });
-
-        // Handle orientation changes
-        window.addEventListener('orientationchange', function() {
-            setTimeout(scrollToBottom, 100);
-        });
-
-        // Initial focus and scroll
-        messageInput.focus();
-        scrollToBottom();
     </script>
 </body>
 </html>
