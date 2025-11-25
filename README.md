@@ -7,9 +7,7 @@ Simple Qt-based web server for local network chat
 ![alt text](https://img.shields.io/badge/compatible%20-windows-blue?style=flat-square)
 
 
-
 QWebChat is a lightweight C++/Qt application that runs a local web server for organizing chat in a local network. Users can connect to the server through a web browser and communicate in real-time.
-
 
 
 <img width="1918" height="914" alt="image" src="https://github.com/user-attachments/assets/a32e3c8d-b691-4129-90df-fe22d7b25bac" />
