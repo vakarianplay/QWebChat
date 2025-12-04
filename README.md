@@ -40,9 +40,6 @@ QWebChat is a lightweight C++/Qt application that runs a local web server for or
 # Run with custom ports
 ./ChatServerQT --http 8080 --ws 8081
 
-# Examples with different port configurations
-./ChatServerQT --http 9000 --ws 9001
-./ChatServerQT --ws 9090 --http 9091
 ```
 
 **Parameters:**
