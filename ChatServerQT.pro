@@ -13,11 +13,6 @@ SOURCES += \
         main.cpp
 
 
-# Default rules for deployment.
-qnx: target.path = /tmp/$${TARGET}/bin
-else: unix:!android: target.path = /opt/$${TARGET}/bin
-!isEmpty(target.path): INSTALLS += target
-
 HEADERS += \
         messageprocessor.h \
         filemanager.h \
@@ -26,9 +21,15 @@ HEADERS += \
 DISTFILES += \
     index.html
 
+
+# Default rules for deployment.
+qnx: target.path = /tmp/$${TARGET}/bin
+else: unix:!android: target.path = /opt/$${TARGET}/bin
+!isEmpty(target.path): INSTALLS += target
+
 win {
     build_extra_files.target = $$OUT_PWD/index.html
-    build_extra_files.commands = copy /Y $$PWD/index.html $$OUT_PWD\
+    build_extra_files.commands = cp /Y index.html $$OUT_PWD\
     QMAKE_EXTRA_TARGETS += build_extra_files
     PRE_TARGETDEPS += $$build_extra_files.target
 }
