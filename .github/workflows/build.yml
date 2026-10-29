@@ -1,0 +1,171 @@
+name: Build and release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux amd64
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            qt6-base-dev \
+            qt6-base-dev-tools \
+            qmake6 \
+            qt6-websockets-dev
+
+      - name: Build
+        run: |
+          mkdir -p build dist
+          cd build
+
+          qmake6 ../ChatServerQT.pro \
+            CONFIG+=release \
+            CONFIG-=debug \
+            CONFIG-=debug_and_release \
+            DESTDIR=../dist
+
+          make -j"$(nproc)"
+
+      - name: Package
+        run: |
+          cp index.html dist/index.html
+
+          mkdir -p package/QWebChat
+          cp dist/QWebChat package/QWebChat/
+          cp dist/index.html package/QWebChat/
+
+          tar -czf QWebChat-linux-amd64.tar.gz \
+            -C package QWebChat
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-amd64
+          path: QWebChat-linux-amd64.tar.gz
+          if-no-files-found: error
+
+  windows:
+    name: Windows amd64
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.3"
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          modules: qtwebsockets
+          cache: true
+
+      - name: Build
+        shell: cmd
+        run: |
+          mkdir build
+          mkdir dist
+          cd build
+
+          qmake ..\ChatServerQT.pro ^
+            CONFIG+=release ^
+            CONFIG-=debug ^
+            CONFIG-=debug_and_release ^
+            DESTDIR=../dist
+
+          if errorlevel 1 exit /b 1
+
+          nmake
+          if errorlevel 1 exit /b 1
+
+      - name: Deploy Qt libraries
+        shell: pwsh
+        run: |
+          Copy-Item index.html dist/index.html
+
+          windeployqt `
+            --release `
+            --compiler-runtime `
+            --no-translations `
+            --dir dist `
+            dist/QWebChat.exe
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "windeployqt failed"
+          }
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path package/QWebChat -Force
+          Copy-Item dist/* package/QWebChat -Recurse
+
+          Compress-Archive `
+            -Path package/QWebChat `
+            -DestinationPath QWebChat-windows-amd64.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-amd64
+          path: QWebChat-windows-amd64.zip
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - linux
+      - windows
+    runs-on: ubuntu-22.04
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create release and upload archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          TARGET_COMMIT: ${{ github.sha }}
+        run: |
+          gh release create "$TAG" \
+            artifacts/QWebChat-linux-amd64.tar.gz \
+            artifacts/QWebChat-windows-amd64.zip \
+            --target "$TARGET_COMMIT" \
+            --title "QWebChat $TAG" \
+            --generate-notes
