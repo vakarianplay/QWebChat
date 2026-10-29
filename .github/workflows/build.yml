@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 jobs:
-    linux:
+  linux:
     name: Linux amd64
     runs-on: ubuntu-24.04
 
@@ -48,11 +48,10 @@ jobs:
 
       - name: Package
         run: |
-          cp index.html dist/index.html
-
           mkdir -p package/QWebChat
+
           cp dist/QWebChat package/QWebChat/
-          cp dist/index.html package/QWebChat/
+          cp index.html package/QWebChat/
 
           tar -czf QWebChat-linux-amd64.tar.gz \
             -C package QWebChat
@@ -124,7 +123,11 @@ jobs:
       - name: Package
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path package/QWebChat -Force
+          New-Item `
+            -ItemType Directory `
+            -Path package/QWebChat `
+            -Force
+
           Copy-Item dist/* package/QWebChat -Recurse
 
           Compress-Archive `
@@ -144,7 +147,7 @@ jobs:
     needs:
       - linux
       - windows
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     permissions:
       contents: write
@@ -156,16 +159,26 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Create release and upload archives
+      - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
-          TARGET_COMMIT: ${{ github.sha }}
         run: |
-          gh release create "$TAG" \
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            gh release create "$TAG" \
+              --verify-tag \
+              --title "QWebChat $TAG" \
+              --generate-notes
+          fi
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release upload "$TAG" \
             artifacts/QWebChat-linux-amd64.tar.gz \
             artifacts/QWebChat-windows-amd64.zip \
-            --target "$TARGET_COMMIT" \
-            --title "QWebChat $TAG" \
-            --generate-notes
+            --clobber
