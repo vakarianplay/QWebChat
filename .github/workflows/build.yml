@@ -15,9 +15,9 @@ permissions:
   contents: read
 
 jobs:
-  linux:
+    linux:
     name: Linux amd64
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
