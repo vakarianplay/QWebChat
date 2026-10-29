@@ -6,9 +6,11 @@ on:
       - main
     tags:
       - "v*"
+
   pull_request:
     branches:
       - main
+
   workflow_dispatch:
 
 permissions:
@@ -20,10 +22,10 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install build dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -33,30 +35,44 @@ jobs:
             qmake6 \
             qt6-websockets-dev
 
-      - name: Build
+      - name: Configure and build
         run: |
-          mkdir -p build dist
-          cd build
+          mkdir -p "$GITHUB_WORKSPACE/build"
+          mkdir -p "$GITHUB_WORKSPACE/dist"
 
-          qmake6 ../ChatServerQT.pro \
+          cd "$GITHUB_WORKSPACE/build"
+
+          qmake6 "$GITHUB_WORKSPACE/ChatServerQT.pro" \
+            -after \
             CONFIG+=release \
             CONFIG-=debug \
             CONFIG-=debug_and_release \
-            DESTDIR=../dist
+            CONFIG-=debug_and_release_build \
+            TARGET=QWebChat \
+            DESTDIR="$GITHUB_WORKSPACE/dist" \
+            QMAKE_EXTRA_TARGETS= \
+            PRE_TARGETDEPS=
 
           make -j"$(nproc)"
 
-      - name: Package
+          if [ ! -f "$GITHUB_WORKSPACE/dist/QWebChat" ]; then
+            echo "ERROR: dist/QWebChat was not created"
+            find "$GITHUB_WORKSPACE/build" \
+              "$GITHUB_WORKSPACE/dist" -type f
+            exit 1
+          fi
+
+      - name: Package application
         run: |
           mkdir -p package/QWebChat
 
-          cp dist/QWebChat package/QWebChat/
-          cp index.html package/QWebChat/
+          install -m 755 dist/QWebChat package/QWebChat/QWebChat
+          install -m 644 index.html package/QWebChat/index.html
 
           tar -czf QWebChat-linux-amd64.tar.gz \
             -C package QWebChat
 
-      - name: Upload artifact
+      - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
         with:
           name: linux-amd64
@@ -68,10 +84,10 @@ jobs:
     runs-on: windows-2022
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Configure MSVC
+      - name: Configure MSVC x64
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
@@ -86,55 +102,74 @@ jobs:
           modules: qtwebsockets
           cache: true
 
-      - name: Build
+      - name: Configure and build
         shell: cmd
         run: |
-          mkdir build
-          mkdir dist
+          if not exist build mkdir build
+          if not exist dist mkdir dist
           cd build
 
-          qmake ..\ChatServerQT.pro ^
+          qmake "%GITHUB_WORKSPACE%\ChatServerQT.pro" ^
+            -after ^
             CONFIG+=release ^
             CONFIG-=debug ^
             CONFIG-=debug_and_release ^
-            DESTDIR=../dist
+            CONFIG-=debug_and_release_build ^
+            TARGET=QWebChat ^
+            "DESTDIR=%GITHUB_WORKSPACE%/dist" ^
+            QMAKE_EXTRA_TARGETS= ^
+            PRE_TARGETDEPS=
 
           if errorlevel 1 exit /b 1
 
           nmake
           if errorlevel 1 exit /b 1
 
-      - name: Deploy Qt libraries
+          if not exist "%GITHUB_WORKSPACE%\dist\QWebChat.exe" (
+            echo ERROR: dist\QWebChat.exe was not created
+            dir /s /b "%GITHUB_WORKSPACE%\build"
+            dir /s /b "%GITHUB_WORKSPACE%\dist"
+            exit /b 1
+          )
+
+      - name: Deploy Qt dependencies
         shell: pwsh
         run: |
-          Copy-Item index.html dist/index.html
-
           windeployqt `
             --release `
             --compiler-runtime `
             --no-translations `
-            --dir dist `
-            dist/QWebChat.exe
+            --dir "$env:GITHUB_WORKSPACE/dist" `
+            "$env:GITHUB_WORKSPACE/dist/QWebChat.exe"
 
           if ($LASTEXITCODE -ne 0) {
-            throw "windeployqt failed"
+            throw "windeployqt failed with code $LASTEXITCODE"
           }
 
-      - name: Package
+          Copy-Item `
+            -Path index.html `
+            -Destination dist/index.html
+
+      - name: Package application
         shell: pwsh
         run: |
           New-Item `
             -ItemType Directory `
             -Path package/QWebChat `
-            -Force
+            -Force | Out-Null
 
-          Copy-Item dist/* package/QWebChat -Recurse
+          Copy-Item `
+            -Path dist/* `
+            -Destination package/QWebChat `
+            -Recurse `
+            -Force
 
           Compress-Archive `
             -Path package/QWebChat `
-            -DestinationPath QWebChat-windows-amd64.zip
+            -DestinationPath QWebChat-windows-amd64.zip `
+            -Force
 
-      - name: Upload artifact
+      - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-amd64
@@ -142,7 +177,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    name: Publish release
+    name: Publish GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
       - linux
@@ -153,13 +188,13 @@ jobs:
       contents: write
 
     steps:
-      - name: Download artifacts
+      - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
 
-      - name: Create release
+      - name: Create release if missing
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -172,7 +207,7 @@ jobs:
               --generate-notes
           fi
 
-      - name: Upload release assets
+      - name: Upload release archives
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
